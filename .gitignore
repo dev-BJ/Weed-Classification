@@ -9,6 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
-data/train/
+dataset/
+out/
 storage
 start_label_studio.sh
+main.py
