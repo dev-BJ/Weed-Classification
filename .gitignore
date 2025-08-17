@@ -14,3 +14,7 @@ out/
 storage
 start_label_studio.sh
 main.py
+
+*.jpg
+*.jpeg
+*.png

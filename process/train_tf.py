@@ -4,7 +4,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models, optimizers
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications import MobileNetV2, MobileNetV3Small
+from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
@@ -14,12 +15,13 @@ import matplotlib.pyplot as plt
 from math import ceil
 import joblib
 from datetime import datetime
+import time
 
 # --- Step 1: Data Preparation ---
 base_path = os.path.abspath(os.getcwd())
 pkl_file = os.path.join(base_path, "process","out","weed.pkl")
 
-print("Starting training...")
+print(f'Starting training at {datetime.now().strftime("%Y/%m/%d_%H:%M:%S")}')
 
 df = None
 # Load and preprocess data
@@ -37,12 +39,15 @@ label_map = dict(zip(label_encoder.transform(label_encoder.classes_), label_enco
 print("Class distribution:")
 pprint(df['label'].value_counts())
 
-img_size = (224, 224)  # Match MobileNetV2 input size
+img_size = (224, 224, 3)  # Match MobileNetV2 input size
+
 label_map['img_size'] = img_size
 
 # Filter valid image paths
-X_images = np.array([df['rgb_path'].iloc[i] for i in range(len(df)) if os.path.exists(df['rgb_path'].iloc[i])])
-y = df['label'].values
+valid_indices = [i for i in range(len(df)) if os.path.exists(df['rgb_path'].iloc[i])]
+X_images = np.array([df['rgb_path'].iloc[i] for i in valid_indices])
+y = df['label'].values[valid_indices]
+
 if len(X_images) == 0:
     print("Error: No valid images loaded.")
     exit(1)
@@ -57,10 +62,13 @@ y_train_onehot = tf.keras.utils.to_categorical(y_train, num_classes)
 y_val_onehot = tf.keras.utils.to_categorical(y_val, num_classes)
 
 # Data augmentation
-batch_size = 32
+batch_size = 16
+steps_per_epoch = min(ceil(len(X_img_train) / batch_size), 200)
+validation_steps = min(ceil(len(X_img_val) / batch_size), 64)
+
 train_datagen = ImageDataGenerator(
     rescale=1./255,
-    rotation_range=40,
+    rotation_range=20,
     width_shift_range=0.2,
     height_shift_range=0.2,
     shear_range=0.2,
@@ -78,36 +86,39 @@ train_generator = train_datagen.flow_from_dataframe(
     train_df,
     x_col='path',
     y_col='label',
-    target_size=img_size,
+    target_size=img_size[ : 2],
     batch_size=batch_size,
     class_mode='categorical',
     shuffle=True,
-    validate_filenames=True
+    validate_filenames=True,
+    color_mode='rgb'
 )
 
 val_generator = val_datagen.flow_from_dataframe(
     val_df,
     x_col='path',
     y_col='label',
-    target_size=img_size,
+    target_size=img_size[ : 2],
     batch_size=batch_size,
     class_mode='categorical',
     shuffle=False,
-    validate_filenames=True
+    validate_filenames=True,
+    color_mode='rgb'
 )
 
 print("Data generators created.")
 
 # --- Step 2: Model Building ---
 # MobileNetV2 for image features
-base_model = MobileNetV2(input_shape=(224, 224, 3), include_top=False, weights='imagenet')
+base_model = MobileNetV3Small(input_shape=img_size, include_top=False, weights='imagenet')
 base_model.trainable = False
 
 # Model architecture
-image_input = layers.Input(shape=(224, 224, 3), name='image_input')
+image_input = layers.Input(shape=img_size, name='image_input')
 base_output = base_model(image_input)
 image_pooling = layers.GlobalAveragePooling2D()(base_output)
-image_dense = layers.Dense(128, activation='relu')(image_pooling)
+image_normalization = layers.BatchNormalization()(image_pooling)
+image_dense = layers.Dense(128, activation='relu')(image_normalization)
 image_dropout = layers.Dropout(0.5)(image_dense)
 output = layers.Dense(num_classes, activation='softmax')(image_dropout)
 
@@ -119,14 +130,23 @@ model.compile(
     metrics=['accuracy']
 )
 
+print(model.summary())
+
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 # --- Step 3: Training ---
+start_time = time.time()
 history = model.fit(
     train_generator,
-    steps_per_epoch=ceil(len(X_img_train) / batch_size),
-    epochs=15,
+    steps_per_epoch=steps_per_epoch,
+    epochs=20,
     validation_data=val_generator,
-    validation_steps=ceil(len(X_img_val) / batch_size)
+    validation_steps=validation_steps,
+    callbacks=[early_stopping]
 )
+
+training_time = (time.time() - start_time) / 60
+print(f"Training completed at {datetime.now().strftime('%I:%M %p %Z, %B %d, %Y')}")
+print(f"Training time: {training_time:.2f} minutes")
 
 os.makedirs(os.path.join(base_path, 'process/out/tf'), exist_ok=True)
 # Save class indices
@@ -139,7 +159,7 @@ model.save(os.path.join(base_path, f'process/out/tf/weed_classifier_{datetime.no
 val_images = []
 for path in X_img_val:
     try:
-        img = tf.keras.preprocessing.image.load_img(path, target_size=img_size)
+        img = tf.keras.preprocessing.image.load_img(path, target_size=img_size[ : 2], color_mode='rgb')
         img_array = tf.keras.preprocessing.image.img_to_array(img) / 255.0
         val_images.append(img_array)
     except Exception as e:
@@ -149,7 +169,8 @@ val_images = np.array(val_images)
 # Predict on validation set
 val_predictions = model.predict(val_images)
 y_pred = np.argmax(val_predictions, axis=1)
-y_true = np.argmax(y_val_onehot, axis=1)
+# y_true = np.argmax(y_val_onehot, axis=1)
+y_true = y_val
 
 print("\nClassification Report:")
 print(classification_report(y_true, y_pred, target_names=label_encoder.classes_))
@@ -179,7 +200,7 @@ plt.close()
 def predict_weed(image_path, model, class_indices, size=(224, 224)):
     try:
         # Load and preprocess image
-        img = tf.keras.preprocessing.image.load_img(image_path, target_size=size)
+        img = tf.keras.preprocessing.image.load_img(image_path, target_size=size, color_mode='rgb')
         img_array = tf.keras.preprocessing.image.img_to_array(img) / 255.0
         img_array = np.expand_dims(img_array, axis=0)
 
@@ -191,6 +212,6 @@ def predict_weed(image_path, model, class_indices, size=(224, 224)):
         return f"Error processing image: {str(e)}"
 
 # Example usage
-# image_path = os.path.join(base_path, 'test/control-of-mexican-poppy-in-beans-tanzania-1.jpeg')  # Update with actual path
-# predicted_class = predict_weed(image_path, model, label_map)
-# print(f"Predicted Class: {predicted_class}")
+image_path = os.path.join(base_path, 'process/mexican-poppy.jpeg')  # Update with actual path
+predicted_class = predict_weed(image_path, model, label_map)
+print(f"Predicted Class: {predicted_class}")

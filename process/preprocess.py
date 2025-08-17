@@ -12,7 +12,7 @@ def process_image(args):
     """Process a single image and return its paths and label."""
     image_path, species_name, output_dir = args
     try:
-        if not image_path.endswith(('.jpg', '.png')):
+        if not image_path.endswith(('.jpg', '.png', '.jpeg')):
             return None
 
         image = cv2.imread(image_path)
@@ -20,14 +20,14 @@ def process_image(args):
             print(f"Failed to load image: {image_path}")
             return None
 
-        preprocessed_image = filters(image)
-        gray_output_path = os.path.join(output_dir, species_name, os.path.basename(image_path))
-        os.makedirs(os.path.dirname(gray_output_path), exist_ok=True)
-        cv2.imwrite(gray_output_path, preprocessed_image)
+        # preprocessed_image = filters(image)
+        # gray_output_path = os.path.join(output_dir, species_name, os.path.basename(image_path))
+        # os.makedirs(os.path.dirname(gray_output_path), exist_ok=True)
+        # cv2.imwrite(gray_output_path, preprocessed_image)
 
         return {
             'rgb_path': image_path,
-            'gray_path': gray_output_path,
+            # 'gray_path': gray_output_path,
             'label': species_name
         }
     except Exception as e:
@@ -92,11 +92,17 @@ def preprocess_mask():
         for result in results:
             if result is not None:
                 rgb_image.append(result['rgb_path'])
-                gray_image.append(result['gray_path'])
+                # gray_image.append(result['gray_path'])
                 label.append(result['label'])
 
     # Save results to DataFrame
-    df = pd.DataFrame({'rgb_path': rgb_image, 'gray_path': gray_image, 'label': label})
+    df = pd.DataFrame(
+        {
+            'rgb_path': rgb_image,
+            # 'gray_path': gray_image,
+            'label': label,
+        }
+    )
     df.to_pickle(f'{weed_pkl_path}/weed.pkl')
 
 if __name__ == "__main__":
