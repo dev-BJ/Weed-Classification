@@ -1,5 +1,16 @@
+import uvicorn
+import winuvloop
+
+from api import app
+
 def main():
-    pass
+    winuvloop.install()
+    uvicorn.run(
+        "api:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+    )
 
 
 if __name__ == "__main__":

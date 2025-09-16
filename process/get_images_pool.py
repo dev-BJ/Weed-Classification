@@ -102,13 +102,13 @@ def initialize_pool(lock, timestamps):
     request_lock = lock
     request_timestamps = timestamps
 
-def download_inaturalist_images(species_name, max_images=100):
+def download_inaturalist_images(species_data, max_images=100):
     """
     Download images from iNaturalist API for a given species using multiprocessing.
     """
     try:
         os.makedirs(train_dir, exist_ok=True)
-        species_dir = os.path.join(train_dir, species_name)
+        species_dir = os.path.join(train_dir, species_data[0])
         os.makedirs(species_dir, exist_ok=True)
         
         # Set up requests session with retries
@@ -117,33 +117,38 @@ def download_inaturalist_images(species_name, max_images=100):
         session.mount("https://", HTTPAdapter(max_retries=retries))
 
         # Query iNaturalist for taxon ID
-        url = f"https://api.inaturalist.org/v1/taxa?q={species_name}&only_id=true"
+        url = f"https://api.inaturalist.org/v1/taxa?q={species_data[1]}&only_id=true"
         response = rate_limited_request(url, session)
         if not response:
             return []
 
         data = response.json()
         if data['total_results'] == 0:
-            logger.warning(f"No taxa found for {species_name}")
+            logger.warning(f"No taxa found for {species_data[0]}")
             return []
 
         taxon_id = data['results'][0]['id']
-        logger.info(f"Found taxon ID {taxon_id} for {species_name}")
+        logger.info(f"Found taxon ID {taxon_id} for {species_data[0]}")
+
+        page = 1
+
+        if max_images > 200:
+            page = 2
 
         # Query observations
-        observations_url = f"https://api.inaturalist.org/v1/observations?taxon_id={taxon_id}&per_page={max_images}&photos=true"
+        observations_url = f"https://api.inaturalist.org/v1/observations?taxon_id={taxon_id}&page={page}&per_page={max_images}&photos=true"
         response = rate_limited_request(observations_url, session)
         if not response:
             return []
 
         observations = response.json()['results']
         if not observations:
-            logger.warning(f"No observations found for {species_name}")
+            logger.warning(f"No observations found for {species_data[0]}")
             return []
 
         downloaded = len(os.listdir(species_dir))
         if downloaded >= max_images:
-            logger.info(f"Skipping {species_name}, already has {downloaded} images")
+            logger.info(f"Skipping {species_data[0]}, already has {downloaded} images")
             return [os.path.join(species_dir, f) for f in os.listdir(species_dir) if os.path.isfile(os.path.join(species_dir, f))]
 
         # Set up multiprocessing
@@ -161,40 +166,361 @@ def download_inaturalist_images(species_name, max_images=100):
                 results = list(tqdm(
                     pool.imap(download_func, observations),
                     total=min(max_images, len(observations)),
-                    desc=f"Downloading images for {species_name}"
+                    desc=f"Downloading images for {species_data[0]}"
                 ))
 
         valid_files = [f for f in results if f and os.path.isfile(f)]
-        logger.info(f"Downloaded {len(valid_files)} images for {species_name}")
+        logger.info(f"Downloaded {len(valid_files)} images for {species_data[0]}")
         return valid_files
 
     except Exception as e:
-        logger.error(f"Unexpected error for {species_name}: {e}")
+        logger.error(f"Unexpected error for {species_data[0]}: {e}")
         return []
 
 if __name__ == "__main__":
-    weeds = [
-        "African Daisy", "African Foxtail", "African Olive", "Alligatorweed", "Bermuda Grass",
-        "Bindweed", "Black Nightshade", "Broomrape", "Butterfly Pea", "Canada Thistle",
-        "Carpet Grass", "Cattail", "Chamber Bitter", "Cogon Grass", "Common Chickweed",
-        "Common Sowthistle", "Crabgrass", "Dandelion", "Dodder", "Foxtail", "Goat Weed",
-        "Goosegrass", "Guinea Grass", "Japanese Knotweed", "Jungle Rice", "Kudzu",
-        "Lambsquarters", "Lantana camara", "Mesquite", "Mexican Poppy", "Morning Glory",
-        "Multiflora Rose", "Nutgrass", "Parramatta Grass", "Parthenium Weed", "Pigweed",
-        "Plantain", "Poison Ivy", "Purslane", "Quackgrass", "Ribwort Plantain",
-        "Sensitive Plant", "Siam Weed", "Spear Grass", "Tropical Kudzu", "Tridax Daisy",
-        "Water Fern", "Water Hyacinth", "Water Lettuce", "White Water Lily", "Wireweed",
-        "Witchweed"
+    # Define the common names list
+    all_nigeria_plants = [
+        "African Breadfruit",
+        "African Walnut",
+        "African Yam Bean",
+        "Acha",
+        "Amaranth",
+        "Avocado",
+        "Bambara Groundnut",
+        "Banana",
+        "Plaintain (Banana)",
+        "African Baobab",
+        "Bitter Kola",
+        "Calabash",
+        "Carrot",
+        "Cashew",
+        "Castor Bean",
+        "Chili Pepper",
+        "Cinnamon",
+        "Clove",
+        "Coconut",
+        "Cocoyam",
+        "Cotton",
+        "Cowpea",
+        "Cucumber",
+        "Egusi Melon",
+        "Flaxseed",
+        "Fonio",
+        "Garden Egg",
+        "Ginger",
+        "Groundnut",
+        "Guava",
+        "Gum Arabic",
+        "Hibiscus",
+        "Hog Plum",
+        "Kenaf",
+        "Kola Nut",
+        "Lettuce",
+        "Locust Bean",
+        "Mango",
+        "Mangosteen",
+        "Melon",
+        "Mushroom",
+        "Nutmeg",
+        "Ogbono",
+        "Oil Palm",
+        "Okra",
+        "Onion",
+        "Orange",
+        "Pawpaw",
+        "Pearl Millet",
+        "Pepper",
+        "Peppercorn",
+        "Pigeon Pea",
+        "Pineapple",
+        "Potatoes",
+        "Rice",
+        "Sesame Seed",
+        "Shea Butter Nut",
+        "Sorrel",
+        "Soursop",
+        "Soybean",
+        "Spinach",
+        "Squash",
+        "Star Apple",
+        "Sugarcane",
+        "Sweet Potato",
+        "Tamarind",
+        "Tangerine",
+        "Taro",
+        "Tea",
+        "Tobacco",
+        "Tomato",
+        "Watermelon",
+        "Wheat",
+        # Old list (weeds and common plants) commented out for later use
+        "African Daisy",
+        "African Foxtail",
+        "African Olive",
+        "African Spinach",
+        "African White Mahogany",
+        "Alligatorweed",
+        "Bermuda Grass",
+        "Bindweed",
+        "Bitterleaf",
+        "Black Nightshade",
+        "Broomrape",
+        "Butterfly Pea",
+        "Canada Thistle",
+        "Carpet Grass",
+        "Cassava",
+        "Cattail",
+        "Celosia",
+        "Chamber Bitter",
+        "Climbing Ivy",
+        "Coconut",
+        "Cogon Grass",
+        "Cola Nut",
+        "Common Bean",
+        "Common Chickweed",
+        "Common Sowthistle",
+        "Common Wild Fig",
+        "Corn",
+        "Cordyline",
+        "Croton",
+        "Crown of Thorns",
+        "Crabgrass",
+        "Dandelion",
+        "Date Palm",
+        "Dieffenbachia",
+        "Dodder",
+        "Dumb Cane",
+        "Earleaf Acacia",
+        "Foxtail",
+        "Goat Weed",
+        "Goosegrass",
+        "Guinea Grass",
+        "Japanese Knotweed",
+        "Jute Leaf",
+        "Jungle Rice",
+        "Kudzu",
+        "Lambsquarters",
+        "Lantana camara",
+        "Mesquite",
+        "Mexican Poppy",
+        "Morning Glory",
+        "Moringa",
+        "Mother In-Law’s Tongue",
+        "Multiflora Rose",
+        "Mussaenda",
+        "Neem Tree",
+        "Nganda Coffee",
+        "Nutgrass",
+        "Orchids",
+        "Parramatta Grass",
+        "Parthenium Weed",
+        "Pigweed",
+        "Plantain",
+        "Poison Ivy",
+        "Purslane",
+        "Purple Heart",
+        "Quackgrass",
+        "Ribwort Plantain",
+        "Scent Leaf",
+        "Sensitive Plant",
+        "Siam Weed",
+        "Spear Grass",
+        "Spider Plant",
+        "Sunflowers",
+        "Tropical Kudzu",
+        "Tridax Daisy",
+        "Ube",
+        "Water Fern",
+        "Water Hyacinth",
+        "Water Lettuce",
+        "Waterleaf",
+        "White Water Lily",
+        "Wireweed",
+        "Witchweed",
+        "Yam",
+        "Yellow Bush"
     ]
 
-    max_images = 200
+    # Define the botanical names list
+    botanical_names = [
+        "Treculia africana",  # African Breadfruit
+        "Tetracarpidium conophorum",  # African Walnut
+        "Sphenostylis stenocarpa",  # African Yam Bean
+        "Digitaria iburua",  # Acha
+        "Amaranthus spp.",  # Amaranth
+        "Persea americana",  # Avocado
+        "Vigna subterranea",  # Bambara Groundnut
+        "Musa spp",  # Banana
+        "Musa × paradisiaca",   #Plaintain(Banana)
+        "Adansonia digitata",  # African Baobab
+        "Garcinia kola",  # Bitter Kola
+        "Lagenaria siceraria",  # Calabash
+        "Daucus carota",  # Carrot
+        "Anacardium occidentale",  # Cashew
+        "Ricinus communis",  # Castor Bean
+        "Capsicum frutescens",  # Chili Pepper
+        "Cinnamomum verum",  # Cinnamon
+        "Syzygium aromaticum",  # Clove
+        "Cocos nucifera", # Coconut
+        "Colocasia esculenta",  # Cocoyam Xanthosoma spp.
+        "Gossypium hirsutum",  # Cotton
+        "Vigna unguiculata",  # Cowpea
+        "Cucumis sativus",  # Cucumber
+        "Citrullus lanatus var. colocynthis",  # Egusi Melon
+        "Linum usitatissimum",  # Flaxseed
+        "Digitaria exilis",  # Fonio
+        "Solanum aethiopicum",  # Garden Egg
+        "Zingiber officinale",  # Ginger
+        "Arachis hypogaea",  # Groundnut
+        "Psidium guajava",  # Guava
+        "Senegalia senegal",  # Gum Arabic
+        "Hibiscus sabdariffa",  # Hibiscus
+        "Spondias mombin",  # Hog Plum
+        "Hibiscus cannabinus",  # Kenaf
+        "Cola acuminata",  # Kola Nut
+        "Lactuca sativa",  # Lettuce
+        "Parkia biglobosa",  # Locust Bean
+        "Mangifera indica",  # Mango
+        "Garcinia mangostana",  # Mangosteen
+        "Cucumis melo",  # Melon
+        "Agaricus bisporus",  # Mushroom
+        "Myristica fragrans",  # Nutmeg
+        "Irvingia gabonensis",  # Ogbono
+        "Elaeis guineensis",  # Oil Palm
+        "Abelmoschus esculentus",  # Okra
+        "Allium cepa",  # Onion
+        "Citrus sinensis",  # Orange
+        "Carica papaya",  # Pawpaw
+        "Pennisetum glaucum",  # Pearl Millet
+        "Capsicum annuum",  # Pepper
+        "Piper nigrum",  # Peppercorn
+        "Cajanus cajan",  # Pigeon Pea
+        "Ananas comosus",  # Pineapple
+        "Solanum tuberosum",  # Potatoes
+        "Oryza sativa",  # Rice
+        "Sesamum indicum",  # Sesame Seed
+        "Vitellaria paradoxa",  # Shea Butter Nut
+        "Rumex acetosa",  # Sorrel
+        "Annona muricata",  # Soursop
+        "Glycine max",  # Soybean
+        "Spinacia oleracea",  # Spinach
+        "Cucurbita spp.",  # Squash
+        "Chrysophyllum albidum",  # Star Apple
+        "Saccharum officinarum",  # Sugarcane
+        "Ipomoea batatas",  # Sweet Potato
+        "Tamarindus indica",  # Tamarind
+        "Citrus reticulata",  # Tangerine
+        "Colocasia esculenta",  # Taro
+        "Camellia sinensis",  # Tea
+        "Nicotiana tabacum",  # Tobacco
+        "Solanum lycopersicum",  # Tomato
+        "Citrullus lanatus",  # Watermelon
+        "Triticum aestivum",  # Wheat
+        # Old list (weeds and common plants) commented out for later use
+        "Senecio pterophorus",  # African Daisy
+        "Cenchrus biflorus",  # African Foxtail
+        "Olea europaea subsp. cuspidata",  # African Olive
+        "Amaranthus cruentus",  # African Spinach
+        "Turraeanthus africana",  # African White Mahogany
+        "Alternanthera philoxeroides",  # Alligatorweed
+        "Cynodon dactylon",  # Bermuda Grass
+        "Convolvulus arvensis",  # Bindweed
+        "Vernonia amygdalina",  # Bitterleaf
+        "Solanum nigrum",  # Black Nightshade
+        "Orobanche spp.",  # Broomrape
+        "Centrosema pubescens",  # Butterfly Pea
+        "Cirsium arvense",  # Canada Thistle
+        "Axonopus compressus",  # Carpet Grass
+        "Manihot esculenta",  # Cassava
+        "Typha spp.",  # Cattail
+        "Celosia argentea",  # Celosia
+        "Phyllanthus urinaria",  # Chamber Bitter
+        "Hedera helix",  # Climbing Ivy
+        "Cocos nucifera",  # Coconut
+        "Imperata cylindrica",  # Cogon Grass
+        "Cola acuminata",  # Cola Nut
+        "Phaseolus vulgaris",  # Common Bean
+        "Stellaria media",  # Common Chickweed
+        "Sonchus oleraceus",  # Common Sowthistle
+        "Ficus thonningii",  # Common Wild Fig
+        "Zea mays",  # Corn
+        "Cordyline fruticosa",  # Cordyline
+        "Croton hirtus",  # Croton
+        "Euphorbia milii",  # Crown of Thorns
+        "Digitaria spp.",  # Crabgrass
+        "Taraxacum officinale",  # Dandelion
+        "Phoenix dactylifera",  # Date Palm
+        "Dieffenbachia spp.",  # Dieffenbachia
+        "Cuscuta spp.",  # Dodder
+        "Dieffenbachia seguine",  # Dumb Cane
+        "Acacia auriculiformis",  # Earleaf Acacia
+        "Setaria spp.",  # Foxtail
+        "Ageratum conyzoides",  # Goat Weed
+        "Eleusine indica",  # Goosegrass
+        "Megathyrsus maximus",  # Guinea Grass
+        "Reynoutria japonica",  # Japanese Knotweed
+        "Corchorus olitorius",  # Jute Leaf
+        "Echinochloa colona",  # Jungle Rice
+        "Pueraria montana",  # Kudzu
+        "Chenopodium album",  # Lambsquarters
+        "Lantana camara",  # Lantana camara
+        "Prosopis juliflora",  # Mesquite
+        "Argemone mexicana",  # Mexican Poppy
+        "Ipomoea spp.",  # Morning Glory
+        "Moringa oleifera",  # Moringa
+        "Sansevieria trifasciata",  # Mother In-Law’s Tongue
+        "Rosa multiflora",  # Multiflora Rose
+        "Mussaenda frondosa",  # Mussaenda
+        "Azadirachta indica",  # Neem Tree
+        "Coffea canephora",  # Nganda Coffee
+        "Cyperus esculentus",  # Nutgrass
+        "Orchidaceae spp.",  # Orchids
+        "Sporobolus africanus",  # Parramatta Grass
+        "Parthenium hysterophorus",  # Parthenium Weed
+        "Amaranthus spp.",  # Pigweed
+        "Plantago major",  # Plantain
+        "Toxicodendron radicans",  # Poison Ivy
+        "Portulaca oleracea",  # Purslane
+        "Tradescantia pallida",  # Purple Heart
+        "Elymus repens",  # Quackgrass
+        "Plantago lanceolata",  # Ribwort Plantain
+        "Ocimum gratissimum",  # Scent Leaf
+        "Mimosa pudica",  # Sensitive Plant
+        "Chromolaena odorata",  # Siam Weed
+        "Imperata cylindrica",  # Spear Grass
+        "Chlorophytum comosum",  # Spider Plant
+        "Helianthus annuus",  # Sunflowers
+        "Pueraria phaseoloides",  # Tropical Kudzu
+        "Tridax procumbens",  # Tridax Daisy
+        "Dacryodes edulis",  # Ube
+        "Salvinia auriculata",  # Water Fern
+        "Eichhornia crassipes",  # Water Hyacinth
+        "Pistia stratiotes",  # Water Lettuce
+        "Talinum fruticosum",  # Waterleaf
+        "Nymphaea lotus",  # White Water Lily
+        "Sida acuta",  # Wireweed
+        "Striga hermonthica",  # Witchweed
+        "Dioscorea spp.",  # Yam
+        "Duranta erecta"  # Yellow Bush
+    ]
 
-    for weed in weeds:
-        logger.info(f"Processing images for {weed}")
+    # Zip the two lists into a list of tuples
+    zipped_plants = list(zip(all_nigeria_plants, botanical_names))
+    print("Plant Size:", len(zipped_plants))
+
+    # Optionally, print the zipped list to verify
+    # for common_name, botanical_name in zipped_plants:
+    #     print(f"{common_name}: {botanical_name}")
+
+    for weed in zipped_plants:
+        max_images = 200
+        if ['Cattail'] in weed:  # Example of skipping specific plants
+            max_images = 300
+        logger.info(f"Processing images for {weed[0]}")
         images = download_inaturalist_images(weed, max_images=max_images)
         if max_images < len(images):
-            weeds.append(weed)
+            zipped_plants.append(weed)
         if images:
-            logger.info(f"Downloaded images for {weed}: {len(images)} files \r\n")
+            logger.info(f"Downloaded images for {weed[0]}: {len(images)} files \r\n")
 
-    logger.info(f"Completed processing. Total weeds processed: {len(weeds)}")
+    logger.info(f"Completed processing. Total weeds processed: {len(zipped_plants)}")

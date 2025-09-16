@@ -103,6 +103,7 @@ def preprocess_mask():
             'label': label,
         }
     )
+    print(df.value_counts('label'))
     df.to_pickle(f'{weed_pkl_path}/weed.pkl')
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ def predict_weed(image_path, model, class_indices, size=(224, 224)):
             return f"Error processing image: {str(e)}"
 
 # Example usage
-image_path = os.path.join(base_path, 'dataset/test/water-lettuce2.jpg')
+image_path = os.path.join(base_path, 'dataset/test/Olea-africana.jpg')
 if os.path.exists(image_path):
     predicted_class = predict_weed(image_path, model, label_map)
     print(f"Predicted Class: {predicted_class}")
