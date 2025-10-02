@@ -40,7 +40,7 @@ def preprocess_paths(args):
 
 # --- Step 1: Data Preparation ---
 base_path = os.path.abspath(os.path.dirname(__file__))
-pkl_file = os.path.join(base_path, "out/weed.pkl")
+pkl_file = os.path.join(base_path, "out/plants.pkl")
 
 start_time = time.time()
 print(f"Starting training at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
@@ -162,7 +162,7 @@ with tempfile.TemporaryDirectory(dir=base_path) as temp_dir:
         data=temp_dir,
         task='classify',
         mode='train',
-        epochs=30,
+        epochs=40,
         batch=batch_size,
         imgsz=224,
         device='cpu',

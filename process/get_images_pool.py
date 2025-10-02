@@ -500,7 +500,7 @@ if __name__ == "__main__":
         "Nymphaea lotus",  # White Water Lily
         "Sida acuta",  # Wireweed
         "Striga hermonthica",  # Witchweed
-        "Dioscorea spp.",  # Yam
+        "Dioscorea alata",  # Yam
         "Duranta erecta"  # Yellow Bush
     ]
 
@@ -514,12 +514,16 @@ if __name__ == "__main__":
 
     for weed in zipped_plants:
         max_images = 200
-        if ['Cattail'] in weed:  # Example of skipping specific plants
+        if weed[0] == "Cattail":  # Example of skipping specific plants
             max_images = 300
         logger.info(f"Processing images for {weed[0]}")
+        if len(os.listdir(os.path.join(train_dir, weed[0]))) >= max_images:
+            logger.info(f"Skipping {weed[0]}, directory already exists. \r\n")
+            continue
         images = download_inaturalist_images(weed, max_images=max_images)
         if max_images < len(images):
-            zipped_plants.append(weed)
+            # zipped_plants.append(weed)
+            pass
         if images:
             logger.info(f"Downloaded images for {weed[0]}: {len(images)} files \r\n")
 

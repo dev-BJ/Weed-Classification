@@ -7,6 +7,8 @@ import shutil
 from tqdm import tqdm
 from utils import get_image_by_mask, filters, resize
 from multiprocessing import Pool
+import random
+from pprint import pprint 
 
 def process_image(args):
     """Process a single image and return its paths and label."""
@@ -36,7 +38,7 @@ def process_image(args):
     
 def yield_image_path(args):
     input_dir, species_name, img_limit= args
-    for image_name in sorted(os.listdir(os.path.join(input_dir, species_name)))[:img_limit]:
+    for image_name in random.sample(os.listdir(os.path.join(input_dir, species_name)), img_limit):
             if image_name.endswith(('.jpg', '.png')):
                 yield os.path.join(input_dir, species_name, image_name)
                 
@@ -60,22 +62,16 @@ def preprocess_mask():
     # Clean up existing directories and files
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
-    if os.path.exists(f'{weed_pkl_path}/weed.pkl'):
-        os.remove(f'{weed_pkl_path}/weed.pkl')
+    if os.path.exists(f'{weed_pkl_path}/plants..pkl'):
+        os.remove(f'{weed_pkl_path}/plants.pkl')
 
     os.makedirs(weed_pkl_path, exist_ok=True)
 
     # Process each species
     for species_name in tqdm(sorted(os.listdir(input_dir)), desc="Processing Species", unit="species", colour='red'):
-        # image_paths = [
-        #     os.path.join(input_dir, species_name, image_name)
-        #     for image_name in sorted(os.listdir(os.path.join(input_dir, species_name)))[:img_limit]
-        #     if image_name.endswith(('.jpg', '.png'))
-        # ]
-
-        # Prepare arguments for each image
-        # args_list = [(image_path, species_name, output_dir) for image_path in image_paths]
-        # args_list = [(image_path, species_name, output_dir) for image_path in yield_image_path((input_dir, species_name, img_limit))]
+    
+        if len(os.listdir(os.path.join(input_dir, species_name))) < img_limit:
+            continue
         args_list = list(yield_arg_list(input_dir, species_name, output_dir, img_limit))
 
         # Use Pool to parallelize image processing
@@ -104,7 +100,7 @@ def preprocess_mask():
         }
     )
     print(df.value_counts('label'))
-    df.to_pickle(f'{weed_pkl_path}/weed.pkl')
-
+    pprint(df['label'].unique())
+    df.to_pickle(f'{weed_pkl_path}/plants.pkl')
 if __name__ == "__main__":
     preprocess_mask()
