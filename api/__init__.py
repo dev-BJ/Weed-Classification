@@ -6,6 +6,9 @@ import joblib
 from ultralytics import YOLO
 import cv2
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -44,12 +47,18 @@ async def classify(data: ImageClassify):
          print("Image decoded successfully")
          os.makedirs("decoded_images", exist_ok=True)
          index = len(os.listdir("decoded_images"))
-         cv2.imwrite(f"decoded_images/decoded_image_{index}.jpg", img)
+         cv2.imwrite(f"decoded_images/decoded_image_{index + 1}.jpg", img)
 
-    base_path = os.path.abspath(os.getcwd())
-    process_path = os.path.join(base_path, 'process')
-    label_map = joblib.load(f"{process_path}/out/yolo/label_map.joblib")
-    model = YOLO(f"{process_path}/out/yolo/yolo_weed_classifier_20250815_184719/weights/best.pt")
+    # base_path = os.path.abspath(os.getcwd())
+    # process_path = os.path.join(base_path, 'process')
+    # label_map = joblib.load(f"{process_path}/out/yolo/label_map.joblib")
+
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    base_path = os.path.abspath(os.path.join(base_path, 'models'))
+    label_map = joblib.load(f"{base_path}/label_map.joblib")
+    model = os.environ['WEED_MODEL']
+    model_path = f"{base_path}/{model}/best.pt"
+    model = YOLO(model_path)
 
     prediction = predict_weed(img, model, label_map)
     return prediction

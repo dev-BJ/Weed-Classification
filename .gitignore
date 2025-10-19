@@ -9,12 +9,19 @@ wheels/
 # Virtual environments
 .venv
 
-dataset/
-out/
+dataset
+process/out
 storage
 start_label_studio.sh
 main.py
+decoded_images
+simple_images
+tf
 
 *.jpg
 *.jpeg
 *.png
+*.zip
+.git
+.env
+*-cls.pt
