@@ -1,5 +1,5 @@
 {
-  "$schema": "https://railway.com/railway.schema.json",
+  "$schema": "https://schema.railpack.com",
   "build": {
     "builder": "RAILPACK",
     "installCommand": "python -m venv /app/.venv && pip install torch==2.3.0+cpu torchvision==0.18.0+cpu torchaudio==2.3.0+cpu --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt"
