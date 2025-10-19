@@ -7,7 +7,7 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
-    "startCommand": "pip install hypercorn && hypercorn --bind \"[::]:$PORT\"",
+    "startCommand": "hypercorn --bind \"[::]:$PORT\"",
     "sleepApplication": false,
     "multiRegionConfig": {
       "europe-west4-drams3a": {
