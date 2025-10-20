@@ -7,10 +7,25 @@ from ultralytics import YOLO
 import cv2
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
 app = FastAPI()
+origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    # "https://nurturing-youthfulness-production.up.railway.app",
+    "https://weed-v0.vercel.app",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/api/")
 async def root():
