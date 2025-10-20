@@ -69,3 +69,5 @@ uvloop==0.21.0
 
 # Do NOT include Windows-only libraries on Linux builds
 winuvloop==0.2.0
+
+python-dotenv==1.0.1
