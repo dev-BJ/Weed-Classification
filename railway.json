@@ -8,7 +8,7 @@
     "runtime": "V2",
     "numReplicas": 1,
     "startCommand": "uvicorn api:app --host 0.0.0.0 --port $PORT",
-    "sleepApplication": false,
+    "sleepApplication": true,
     "multiRegionConfig": {
       "europe-west4-drams3a": {
         "numReplicas": 1
